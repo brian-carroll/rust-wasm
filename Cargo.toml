@@ -8,4 +8,3 @@ edition = "2018"
 [dependencies]
 parity-wasm = "0.42"
 wasmer = "2.0.0"
-anyhow = "1.0.43"

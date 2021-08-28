@@ -2,35 +2,46 @@
 // Builder api introduced as a method for fast generation of
 // different small wasm modules.
 use std::fs;
+use std::ffi::CString;
+use std::ptr;
+use std::slice;
 
-extern crate parity_wasm;
-use parity_wasm::{builder, elements};
+use binaryen::ffi::*;
+// use parity_wasm::{builder, elements};
 use wasmer::{Store, Module, Instance, Value, imports};
 
 fn create_wasm_bytes() -> Vec<u8> {
-    // Based on the example at https://github.com/paritytech/parity-wasm/blob/master/examples/build.rs
-    let module = builder::module()
-        .function()
-            .signature()
-                .with_param(elements::ValueType::I32)
-                .with_result(elements::ValueType::I32)
-                .build()
-            .body()
-                .with_instructions(elements::Instructions::new(vec![
-                    elements::Instruction::GetLocal(0),
-                    elements::Instruction::I32Const(1),
-                    elements::Instruction::I32Add,
-                    elements::Instruction::End,
-                ]))
-                .build()
-            .build()
-        .export()
-            .field("add_one")
-            .internal().func(0)
-            .build()
-        .build();
+    unsafe {
+        let module = BinaryenModuleCreate();
+        let name = CString::new("add_one").unwrap();
+        let params = BinaryenTypeInt32();
+        let results = BinaryenTypeInt32();
+        let var_types = ptr::null_mut();
+        let num_var_types = 0;
+        let body = BinaryenBinary(module,
+            BinaryenAddInt32(),
+            BinaryenLocalGet(module, 0, BinaryenTypeInt32()),
+            BinaryenConst(module, BinaryenLiteralInt32(2))
+        );
 
-    return parity_wasm::elements::serialize(module).unwrap();
+        BinaryenAddFunction(
+            module,
+            name.as_ptr(),
+            params,
+            results,
+            var_types,
+            num_var_types,
+            body
+        );
+
+        BinaryenAddFunctionExport(
+            module, name.as_ptr(), name.as_ptr()
+        );
+
+        let result = BinaryenModuleAllocateAndWrite(module, ptr::null());
+        let bytes = slice::from_raw_parts(result.binary as *const u8, result.binaryBytes);
+        return bytes.to_vec();
+    }
 }
 
 
